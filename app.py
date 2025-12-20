@@ -1,14 +1,16 @@
-# ==============================
-# IMPORTAÇÕES
-# ==============================
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
 import matplotlib.pyplot as plt
 
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder, LabelEncoder, StandardScaler
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestClassifier
+
 # ==============================
-# CONFIGURAÇÃO INICIAL (OBRIGATORIAMENTE PRIMEIRO)
+# CONFIGURAÇÃO DA PÁGINA
 # ==============================
 st.set_page_config(
     page_title="Predição de Obesidade",
@@ -16,7 +18,7 @@ st.set_page_config(
 )
 
 # ==============================
-# SIDEBAR - NAVEGAÇÃO
+# MENU LATERAL
 # ==============================
 aba = st.sidebar.radio(
     "Navegação",
@@ -24,32 +26,87 @@ aba = st.sidebar.radio(
 )
 
 # ==============================
-# CARREGAR MODELOS
+# TREINAMENTO DOS MODELOS
 # ==============================
-modelo_clinico = joblib.load("modelo_clinico.pkl")
-modelo_preventivo = joblib.load("modelo_preventivo.pkl")
-encoder_target = joblib.load("encoder_target.pkl")
+@st.cache_resource
+def treinar_modelos():
+    df = pd.read_csv("Obesity.csv")
 
-# =========================================================
-# 🩺 SISTEMA PREDITIVO
-# =========================================================
+    # Feature engineering
+    df["BMI"] = df["Weight"] / (df["Height"] ** 2)
+
+    y = df["Obesity"]
+    X = df.drop("Obesity", axis=1)
+
+    encoder_y = LabelEncoder()
+    y_enc = encoder_y.fit_transform(y)
+
+    # ==========================
+    # MODELO CLÍNICO
+    # ==========================
+    num_cols = ["Age", "Height", "Weight", "FCVC", "NCP", "CH2O", "FAF", "TUE", "BMI"]
+    cat_cols = [c for c in X.columns if c not in num_cols]
+
+    preprocessor = ColumnTransformer([
+        ("num", StandardScaler(), num_cols),
+        ("cat", OneHotEncoder(handle_unknown="ignore"), cat_cols)
+    ])
+
+    modelo_clinico = Pipeline([
+        ("prep", preprocessor),
+        ("model", RandomForestClassifier(
+            n_estimators=200,
+            random_state=42,
+            class_weight="balanced"
+        ))
+    ])
+
+    modelo_clinico.fit(X, y_enc)
+
+    # ==========================
+    # MODELO PREVENTIVO
+    # ==========================
+    X_prev = X.drop(["Weight", "Height", "BMI"], axis=1)
+
+    num_prev = ["Age", "FCVC", "NCP", "CH2O", "FAF", "TUE"]
+    cat_prev = [c for c in X_prev.columns if c not in num_prev]
+
+    preprocessor_prev = ColumnTransformer([
+        ("num", StandardScaler(), num_prev),
+        ("cat", OneHotEncoder(handle_unknown="ignore"), cat_prev)
+    ])
+
+    modelo_preventivo = Pipeline([
+        ("prep", preprocessor_prev),
+        ("model", RandomForestClassifier(
+            n_estimators=200,
+            random_state=42,
+            class_weight="balanced"
+        ))
+    ])
+
+    modelo_preventivo.fit(X_prev, y_enc)
+
+    return modelo_clinico, modelo_preventivo, encoder_y
+
+
+modelo_clinico, modelo_preventivo, encoder_target = treinar_modelos()
+
+# ==============================
+# SISTEMA PREDITIVO
+# ==============================
 if aba == "🩺 Sistema Preditivo":
 
     st.title("🩺 Sistema de Predição de Obesidade")
     st.write(
         """
-        Este sistema auxilia profissionais de saúde na identificação do nível de obesidade.
-        O sistema possui dois modos:
-        - **Diagnóstico Clínico** (com peso e altura)
-        - **Análise Preventiva** (sem peso e altura)
+        Sistema de apoio à decisão clínica para identificação do **nível de obesidade**.
+        Pode ser utilizado tanto em contexto **clínico** quanto **preventivo**.
         """
     )
 
-    # ------------------------------
-    # SELETOR DE MODELO
-    # ------------------------------
     tipo_analise = st.selectbox(
-        "Selecione o tipo de análise:",
+        "Tipo de análise:",
         (
             "Diagnóstico Clínico (com peso e altura)",
             "Análise Preventiva (sem peso e altura)"
@@ -58,9 +115,7 @@ if aba == "🩺 Sistema Preditivo":
 
     st.divider()
 
-    # ------------------------------
     # INPUTS COMUNS
-    # ------------------------------
     age = st.slider("Idade", 14, 61, 30)
     gender = st.selectbox("Gênero", ["Male", "Female"])
     family_history = st.selectbox("Histórico familiar de obesidade", ["yes", "no"])
@@ -79,16 +134,10 @@ if aba == "🩺 Sistema Preditivo":
         ["Public_Transportation", "Automobile", "Walking", "Motorbike", "Bike"]
     )
 
-    # ------------------------------
-    # INPUTS ESPECÍFICOS DO MODELO CLÍNICO
-    # ------------------------------
     if tipo_analise == "Diagnóstico Clínico (com peso e altura)":
         weight = st.number_input("Peso (kg)", 30.0, 200.0, 70.0)
         height = st.number_input("Altura (m)", 1.30, 2.10, 1.70)
 
-    # ------------------------------
-    # BOTÃO DE PREDIÇÃO
-    # ------------------------------
     if st.button("🔍 Realizar predição"):
 
         if tipo_analise == "Diagnóstico Clínico (com peso e altura)":
@@ -139,78 +188,55 @@ if aba == "🩺 Sistema Preditivo":
         classe = encoder_target.inverse_transform([pred])[0]
 
         st.success(f"🧠 **Nível de obesidade previsto:** {classe}")
-        st.info("⚠️ Sistema de apoio à decisão clínica. Não substitui avaliação médica.")
+        st.info("⚠️ Este sistema é um apoio à decisão e não substitui avaliação médica.")
 
-# =========================================================
-# 📊 DASHBOARD ANALÍTICO
-# =========================================================
+# ==============================
+# DASHBOARD ANALÍTICO
+# ==============================
 if aba == "📊 Dashboard Analítico":
 
-    st.title("📊 Dashboard Analítico - Obesidade")
-    st.write(
-        """
-        Painel analítico com base em dados históricos para apoio
-        à tomada de decisão clínica e ações preventivas.
-        """
-    )
+    st.title("📊 Dashboard Analítico – Obesidade")
+    st.write("Análise exploratória para apoio à decisão clínica e preventiva.")
 
-    # ------------------------------
-    # CARREGAR DADOS
-    # ------------------------------
-    df_dash = pd.read_csv("Obesity.csv")
+    df = pd.read_csv("Obesity.csv")
+    df["BMI"] = df["Weight"] / (df["Height"] ** 2)
 
-    cols_round = ["FCVC", "NCP", "CH2O", "FAF", "TUE"]
-    for col in cols_round:
-        df_dash[col] = df_dash[col].round().astype(int)
-
-    df_dash["BMI"] = df_dash["Weight"] / (df_dash["Height"] ** 2)
-
-    # ------------------------------
-    # DISTRIBUIÇÃO DA OBESIDADE
-    # ------------------------------
+    # Distribuição
     st.subheader("Distribuição dos níveis de obesidade")
     fig1, ax1 = plt.subplots()
-    df_dash["Obesity"].value_counts().plot(kind="bar", ax=ax1)
-    ax1.set_ylabel("Quantidade de pacientes")
-    ax1.set_xlabel("Nível de obesidade")
+    df["Obesity"].value_counts().plot(kind="bar", ax=ax1)
+    ax1.set_ylabel("Quantidade")
+    ax1.set_xlabel("Nível")
     st.pyplot(fig1)
 
-    # ------------------------------
-    # IMC x OBESIDADE
-    # ------------------------------
+    # IMC
     st.subheader("IMC por nível de obesidade")
     fig2, ax2 = plt.subplots(figsize=(8, 4))
-    df_dash.boxplot(column="BMI", by="Obesity", ax=ax2, rot=90)
+    df.boxplot(column="BMI", by="Obesity", ax=ax2, rot=90)
     ax2.set_title("")
     ax2.set_ylabel("IMC")
     st.pyplot(fig2)
 
-    # ------------------------------
-    # ATIVIDADE FÍSICA
-    # ------------------------------
-    st.subheader("Atividade física x IMC")
+    # Atividade física
+    st.subheader("Atividade física x IMC médio")
     fig3, ax3 = plt.subplots()
-    df_dash.groupby("FAF")["BMI"].mean().plot(kind="bar", ax=ax3)
+    df.groupby("FAF")["BMI"].mean().plot(kind="bar", ax=ax3)
     ax3.set_xlabel("Frequência de atividade física")
     ax3.set_ylabel("IMC médio")
     st.pyplot(fig3)
 
-    # ------------------------------
-    # CONSUMO DE ÁGUA
-    # ------------------------------
-    st.subheader("Consumo de água x IMC")
+    # Consumo de água
+    st.subheader("Consumo de água x IMC médio")
     fig4, ax4 = plt.subplots()
-    df_dash.groupby("CH2O")["BMI"].mean().plot(kind="bar", ax=ax4)
-    ax4.set_xlabel("Consumo diário de água")
+    df.groupby("CH2O")["BMI"].mean().plot(kind="bar", ax=ax4)
+    ax4.set_xlabel("Consumo de água")
     ax4.set_ylabel("IMC médio")
     st.pyplot(fig4)
 
-    # ------------------------------
-    # HISTÓRICO FAMILIAR
-    # ------------------------------
-    st.subheader("Histórico familiar x IMC")
+    # Histórico familiar
+    st.subheader("Histórico familiar x IMC médio")
     fig5, ax5 = plt.subplots()
-    df_dash.groupby("family_history")["BMI"].mean().plot(kind="bar", ax=ax5)
+    df.groupby("family_history")["BMI"].mean().plot(kind="bar", ax=ax5)
     ax5.set_xlabel("Histórico familiar")
     ax5.set_ylabel("IMC médio")
     st.pyplot(fig5)
