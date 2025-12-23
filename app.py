@@ -245,21 +245,28 @@ if aba == "📊 Dashboard Analítico":
     )
 
     # ==============================
-    # 3. ATIVIDADE FÍSICA x IMC
+    # 3. ATIVIDADE FÍSICA x IMC (FAIXAS)
     # ==============================
     st.subheader("Atividade física x IMC médio")
-
+    
+    df["Atividade_fisica"] = df["FAF"].map({
+        0: "Sedentário",
+        1: "Baixa",
+        2: "Moderada",
+        3: "Alta"
+    })
+    
     fig3, ax3 = plt.subplots(figsize=(8, 4))
-    df.groupby("FAF")["BMI"].mean().plot(kind="bar", ax=ax3)
-    ax3.set_xlabel("Frequência de atividade física")
+    df.groupby("Atividade_fisica")["BMI"].mean().loc[
+        ["Sedentário", "Baixa", "Moderada", "Alta"]
+    ].plot(kind="bar", ax=ax3)
+    
+    ax3.set_xlabel("Nível de atividade física")
     ax3.set_ylabel("IMC médio")
     ax3.set_title("IMC médio por nível de atividade física")
     st.pyplot(fig3)
 
-    st.markdown(
-        "**Insight:** Indivíduos com menor frequência de atividade física "
-        "apresentam IMC médio mais elevado."
-    )
+    
 
     # ==============================
     # 4. CONSUMO DE ÁGUA (AGRUPADO)
