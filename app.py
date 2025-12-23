@@ -196,47 +196,109 @@ if aba == "🩺 Sistema Preditivo":
 if aba == "📊 Dashboard Analítico":
 
     st.title("📊 Dashboard Analítico – Obesidade")
-    st.write("Análise exploratória para apoio à decisão clínica e preventiva.")
+    st.write(
+        """
+        Visão analítica com foco em **insights clínicos e preventivos**,
+        apoiando a tomada de decisão da equipe médica.
+        """
+    )
 
+    # ==============================
+    # CARREGAR DADOS
+    # ==============================
     df = pd.read_csv("Obesity.csv")
     df["BMI"] = df["Weight"] / (df["Height"] ** 2)
 
-    # Distribuição
+    # ==============================
+    # 1. DISTRIBUIÇÃO DOS NÍVEIS
+    # ==============================
     st.subheader("Distribuição dos níveis de obesidade")
-    fig1, ax1 = plt.subplots()
+
+    fig1, ax1 = plt.subplots(figsize=(8, 4))
     df["Obesity"].value_counts().plot(kind="bar", ax=ax1)
-    ax1.set_ylabel("Quantidade")
-    ax1.set_xlabel("Nível")
+    ax1.set_xlabel("Nível de obesidade")
+    ax1.set_ylabel("Quantidade de indivíduos")
+    ax1.set_title("Distribuição dos níveis de obesidade")
     st.pyplot(fig1)
 
-    # IMC
-    st.subheader("IMC por nível de obesidade")
-    fig2, ax2 = plt.subplots(figsize=(8, 4))
-    df.boxplot(column="BMI", by="Obesity", ax=ax2, rot=90)
-    ax2.set_title("")
+    st.markdown(
+        "**Insight:** Maior concentração em sobrepeso e obesidade tipo I, "
+        "indicando necessidade de ações preventivas precoces."
+    )
+
+    # ==============================
+    # 2. IMC x OBESIDADE (BOXPLOT)
+    # ==============================
+    st.subheader("Relação entre IMC e nível de obesidade")
+
+    fig2, ax2 = plt.subplots(figsize=(10, 4))
+    df.boxplot(column="BMI", by="Obesity", ax=ax2, rot=45)
+    ax2.set_xlabel("Nível de obesidade")
     ax2.set_ylabel("IMC")
+    ax2.set_title("Distribuição do IMC por nível de obesidade")
+    plt.suptitle("")
     st.pyplot(fig2)
 
-    # Atividade física
+    st.markdown(
+        "**Insight:** O IMC apresenta clara separação entre os níveis de obesidade, "
+        "reforçando sua relevância clínica."
+    )
+
+    # ==============================
+    # 3. ATIVIDADE FÍSICA x IMC
+    # ==============================
     st.subheader("Atividade física x IMC médio")
-    fig3, ax3 = plt.subplots()
+
+    fig3, ax3 = plt.subplots(figsize=(8, 4))
     df.groupby("FAF")["BMI"].mean().plot(kind="bar", ax=ax3)
     ax3.set_xlabel("Frequência de atividade física")
     ax3.set_ylabel("IMC médio")
+    ax3.set_title("IMC médio por nível de atividade física")
     st.pyplot(fig3)
 
-    # Consumo de água
+    st.markdown(
+        "**Insight:** Indivíduos com menor frequência de atividade física "
+        "apresentam IMC médio mais elevado."
+    )
+
+    # ==============================
+    # 4. CONSUMO DE ÁGUA (AGRUPADO)
+    # ==============================
     st.subheader("Consumo de água x IMC médio")
-    fig4, ax4 = plt.subplots()
-    df.groupby("CH2O")["BMI"].mean().plot(kind="bar", ax=ax4)
-    ax4.set_xlabel("Consumo de água")
+
+    df["Consumo_agua"] = df["CH2O"].map({
+        1: "< 1 litro/dia",
+        2: "1–2 litros/dia",
+        3: "> 2 litros/dia"
+    })
+
+    fig4, ax4 = plt.subplots(figsize=(8, 4))
+    df.groupby("Consumo_agua")["BMI"].mean().plot(kind="bar", ax=ax4)
+    ax4.set_xlabel("Consumo diário de água")
     ax4.set_ylabel("IMC médio")
+    ax4.set_title("IMC médio por consumo de água")
     st.pyplot(fig4)
 
-    # Histórico familiar
-    st.subheader("Histórico familiar x IMC médio")
-    fig5, ax5 = plt.subplots()
+    st.markdown(
+        "**Insight:** Menor consumo de água está associado a maior IMC médio, "
+        "sugerindo impacto de hábitos simples na saúde metabólica."
+    )
+
+    # ==============================
+    # 5. HISTÓRICO FAMILIAR
+    # ==============================
+    st.subheader("Histórico familiar de obesidade x IMC médio")
+
+    fig5, ax5 = plt.subplots(figsize=(6, 4))
     df.groupby("family_history")["BMI"].mean().plot(kind="bar", ax=ax5)
     ax5.set_xlabel("Histórico familiar")
     ax5.set_ylabel("IMC médio")
+    ax5.set_title("IMC médio por histórico familiar")
     st.pyplot(fig5)
+
+    st.markdown(
+        "**Insight:** Indivíduos com histórico familiar de obesidade "
+        "apresentam maior IMC médio, indicando influência genética associada "
+        "a fatores comportamentais."
+    )
+
